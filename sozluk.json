@@ -1,0 +1,28 @@
+{
+    "kritik_terimler": {
+        "icra": 40,
+        "uzlasma": 35,
+        "uzlaşma": 35,
+        "bloke": 40,
+        "tazminat": 30,
+        "dosya": 20,
+        "iptal bedeli": 45,
+        "avukat": 25,
+        "kanunu": 15,
+        "tespit edilmiştir": 30,
+        "banka hesap": 35,
+        "kısıtlanmıştır": 30,
+        "kazandiniz": 45,
+        "hediye": 25,
+        "ceza": 30,
+        "hukuk": 25
+    },
+    "supheli_kaliplar": [
+        "linke tikla",
+        "tıkla",
+        "bit.ly",
+        "t.me",
+        "kargo teslim",
+        "teslim edilemedi"
+    ]
+}

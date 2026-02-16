@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sentisec | Analiz Geçmişi</title>
+    <style>
+        body { font-family: sans-serif; background: #1a1a2e; color: white; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #16213e; }
+        th, td { border: 1px solid #533483; padding: 12px; text-align: left; }
+        th { background: #e94560; }
+        tr:nth-child(even) { background: #1f2a44; }
+        .risk-high { color: #ff4d4d; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>📋 Sistem Analiz Kayıtları (Loglar)</h1>
+    <a href="/" style="color: #4caf50;">← Analiz Sayfasına Dön</a>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Tarih</th>
+            <th>Metin</th>
+            <th>Hız</th>
+            <th>Risk Skoru</th>
+        </tr>
+        {% for veri in veriler %}
+        <tr>
+            <td>{{ veri[0] }}</td>
+            <td>{{ veri[1] }}</td>
+            <td>{{ veri[2][:50] }}...</td>
+            <td>{{ veri[3] }}</td>
+            <td class="{{ 'risk-high' if veri[4] > 70 else '' }}">%{{ veri[4] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

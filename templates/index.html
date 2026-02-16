@@ -1,133 +1,69 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="tr">
 <head>
-    <title>Sentisec Prototip</title>
+    <meta charset="UTF-8">
+    <title>SENTISEC v2 - Hibrit Tehdit Analiz</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 40px;
-            background: #eceff1;
-        }
-
-        .box {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            max-width: 600px;
-            margin: auto;
-        }
-
-        textarea {
-            width: 100%;
-            height: 120px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            font-size: 16px;
-            outline: none;
-            transition: 0.3s;
-        }
-
-        textarea:focus {
-            border-color: #2196F3;
-        }
-
-        .meter-container {
-            margin-top: 20px;
-            background: #ddd;
-            height: 30px;
-            border-radius: 15px;
-            overflow: hidden;
-        }
-
-        #riskBar {
-            height: 100%;
-            width: 0%;
-            background: #4caf50;
-            transition: 0.5s;
-        }
-
-        #status {
-            margin-top: 10px;
-            font-weight: bold;
-            text-align: center;
-        }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: #eee; text-align: center; padding: 20px; }
+        .main-card { background: #1a1a1a; max-width: 600px; margin: auto; padding: 40px; border-radius: 20px; border-top: 4px solid #00d2ff; }
+        .risk-gauge { font-size: 48px; font-weight: bold; margin: 20px 0; color: #ff4757; text-shadow: 0 0 10px rgba(255,71,87,0.3); }
+        .input-area { background: #252525; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        button { background: #00d2ff; color: #000; border: none; padding: 15px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; }
+        #results { display: none; margin-top: 30px; text-align: left; background: #222; padding: 20px; border-radius: 10px; }
+        .badge { background: #444; padding: 5px 10px; border-radius: 5px; font-size: 12px; margin-right: 5px; }
     </style>
 </head>
-
 <body>
-    <div class="box">
-        <h2>🛡️ Sentisec Analiz Paneli</h2>
-        <p>Mesajınızı yazarken sistem arka planda analiz yapar:</p>
-        <textarea id="textInput" placeholder="Buraya yazmaya başlayın..."></textarea>
+    <div class="main-card">
+        <h1>🛡️ SENTISEC</h1>
+        <p>Otomatik Dinamik Tehdit Algılama Sistemi</p>
 
-        <div class="meter-container">
-            <div id="riskBar"></div>
+        <div class="input-area">
+            <input type="file" id="imageInput" accept="image/*"><br><br>
+            <textarea id="textInput" style="width:100%; height:80px; background:#111; color:white; border:1px solid #333;" placeholder="Veya metni buraya yapıştır..."></textarea>
         </div>
-        <div id="status">Durum: Bekleniyor...</div>
+
+        <button onclick="startAnalysis()">ANALİZİ BAŞLAT</button>
+        <div id="status"></div>
+
+        <div id="results">
+            <div style="text-align:center">
+                <span>RİSK SKORU</span>
+                <div id="riskVal" class="risk-gauge">%0</div>
+            </div>
+            <p><strong>Okunan Metin:</strong> <span id="outText" style="color:#aaa; font-style:italic;"></span></p>
+            <p><strong>Tespitler:</strong></p>
+            <div id="findingList"></div>
+        </div>
     </div>
 
     <script>
-        let lastTime = Date.now();
-        const input = document.getElementById('textInput');
-        const bar = document.getElementById('riskBar');
-        const status = document.getElementById('status');
+        async function startAnalysis() {
+            const img = document.getElementById('imageInput').files[0];
+            const txt = document.getElementById('textInput').value;
+            const status = document.getElementById('status');
+            
+            status.innerText = "⏳ Sistem analiz ediyor...";
+            
+            let fd = new FormData();
+            if(img) fd.append('image', img);
+            else fd.append('text', txt);
 
-        // This input event listener will fire every time the user types
-        input.addEventListener('input', async () => {
-            // 1. Hız ölçümü
-            let now = Date.now();
-            let timeDiff = now - lastTime;
-            // Prevent division by zero or extremely high speeds on first character or fast typing
-            if (timeDiff === 0) timeDiff = 1;
-
-            // Calculate speed (characters per second roughly, logic from user)
-            // Note: The logic "1000 / diff" gives instant speed for last char. 
-            // It might be very high. app.py checks if hiz > 10.
-            let speed = (1000 / timeDiff).toFixed(2);
-            lastTime = now;
-
-            // 2. Python'a (Backend) veri gönderimi
             try {
-                const response = await fetch('/analiz', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        speed: speed,
-                        text: input.value
-                    })
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-
-                    // 3. Arayüzü güncelle
-                    // Ensure the width is a valid percentage string
-                    let riskWidth = result.risk;
-                    if (riskWidth > 100) riskWidth = 100;
-                    bar.style.width = riskWidth + "%";
-
-                    if (result.risk >= 100) {
-                        bar.style.background = "#f44336"; // Kırmızı
-                        status.innerText = "DUR! Yüksek Risk Tespit Edildi!";
-                        status.style.color = "red";
-                    } else if (result.risk >= 50) {
-                        bar.style.background = "#ff9800"; // Turuncu
-                        status.innerText = "Dikkat: Şüpheli Hareket";
-                        status.style.color = "orange";
-                    } else {
-                        bar.style.background = "#4caf50"; // Yeşil
-                        status.innerText = "Durum: Güvenli Yazım";
-                        status.style.color = "green";
-                    }
-                }
-            } catch (error) {
-                console.error("Analiz hatası:", error);
-            }
-        });
+                const res = await fetch('/analiz', { method: 'POST', body: fd });
+                const data = await res.json();
+                
+                document.getElementById('riskVal').innerText = "%" + data.risk;
+                document.getElementById('outText').innerText = data.metin;
+                
+                let fHtml = "";
+                data.bulgular.forEach(b => fHtml += `<div style="margin-bottom:5px">⚠️ ${b}</div>`);
+                document.getElementById('findingList').innerHTML = fHtml;
+                
+                document.getElementById('results').style.display = 'block';
+            } catch(e) { alert("Hata!"); }
+            status.innerText = "";
+        }
     </script>
 </body>
-
 </html>
