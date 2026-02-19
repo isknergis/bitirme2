@@ -1,101 +1,75 @@
-import json
+import cv2
+import pytesseract
+import numpy as np
 import re
-import requests
 from flask import Flask, render_template, request, jsonify
-from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
-# --- VERİ VE TREND YÖNETİMİ ---
-def sozluk_yukle():
-    try:
-        with open('sozluk.json', 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except:
-        return {"kritik_terimler": {}, "supheli_kaliplar": []}
-
-def guncel_sikayet_trendleri():
-    url = "https://www.sikayetvar.com/dolandiricilik"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    try:
-        response = requests.get(url, headers=headers, timeout=5)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        # Sitedeki canlı şikayet başlıklarını çekiyoruz
-        return [b.text.lower() for b in soup.find_all('h2', class_='complaint-title')[:15]]
-    except:
-        return []
-
-# --- BULUT OCR (Resim Okuma) ---
-def bulut_ocr_motoru(file_bytes):
-    api_url = "https://api.ocr.space/parse/image"
-    payload = {
-        'apikey': 'K81736670888957', # Sana e-posta ile gelen kodu buraya yapıştır
-        'language': 'tur'
-    }
-    files = {'file': ('image.jpg', file_bytes, 'image/jpeg')}
-    try:
-        res = requests.post(api_url, files=files, data=payload, timeout=20)
-        result = res.json()
-        if result.get('ParsedResults'):
-            return result['ParsedResults'][0]['ParsedText']
-        return ""
-    except:
-        return "Bağlantı hatası: OCR servisine ulaşılamadı."
-
-# --- ANALİZ MANTIĞI ---
+# --- ANA SAYFA YÖNLENDİRMESİ (404 ÇÖZÜMÜ) ---
 @app.route('/')
 def index():
+    # Bu dosya mutlaka 'templates/index.html' konumunda olmalı
     return render_template('index.html')
 
-@app.route('/analiz', methods=['POST'])
-def analiz():
-    metin = ""
-    kaynak = "Manuel Giriş"
+# --- GÖRÜNTÜ ÖN İŞLEME (Tesseract İçin Optimize) ---
+def goruntu_iyilestir(file_bytes):
+    try:
+        nparr = np.frombuffer(file_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Görüntüyü 2 kat büyütmek Tesseract'ın küçük karakterleri tanımasını sağlar
+        height, width = gray.shape
+        gray = cv2.resize(gray, (width*2, height*2), interpolation=cv2.INTER_CUBIC)
+        
+        # Keskinleştirme Maskesi
+        kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+        processed = cv2.filter2D(gray, -1, kernel)
+        
+        return processed
+    except:
+        return None
 
-    # 1. Veri Girişi (Resim veya Metin)
-    if 'image' in request.files:
-        metin = bulut_ocr_motoru(request.files['image'].read())
-        kaynak = "Görüntü Analizi (Cloud OCR)"
-    else:
-        metin = request.json.get('text', '') if request.is_json else request.form.get('text', '')
-
-    if not metin or "hata" in metin.lower():
-        return jsonify({"risk": 0, "metin": metin or "Metin okunamadı.", "bulgular": []})
-
-    metin_lower = metin.lower()
-    sozluk = sozluk_yukle()
-    trendler = guncel_sikayet_trendleri()
-    
-    risk_puani = 0
+# --- ESNEK RİSK ANALİZİ (Fuzzy Matching) ---
+def esnek_analiz(text):
+    risk = 0
     bulgular = []
+    t = text.lower()
+    
+    # OCR bozuk okusa bile karakter dizilimlerinden yakalıyoruz
+    tehditler = {
+        "Hukuki Baskı": ["icra", "uzla", "ceza", "hukuk", "avukat", "geraic"],
+        "Platform Taklidi": ["ins", "tag", "destek", "yard", "telif", "ihlal", "siga"],
+        "Finansal Tuzak": ["kredi", "kazan", "hedi", "00", "tl", "₺", "lütia", "calma"]
+    }
+    
+    for kategori, parcalar in tehditler.items():
+        if any(p in t for p in parcalar):
+            risk += 35
+            bulgular.append(f"Tespit: {kategori} şüphesi.")
+            
+    return min(100, risk), bulgular
 
-    # 2. Sabit Sözlük Kontrolü
-    for kelime, puan in sozluk['kritik_terimler'].items():
-        if kelime in metin_lower:
-            risk_puani += puan
-            bulgular.append(f"Sözlük Eşleşmesi: {kelime.upper()}")
-
-    # 3. OTOMATİK DİNAMİK TREND ANALİZİ
-    for trend in trendler:
-        # Trend başlığındaki önemli kelimeleri (5 harf+) metinde arıyoruz
-        anahtar_kelimeler = [k for k in trend.split() if len(k) > 4]
-        for ok in anahtar_kelimeler:
-            if ok in metin_lower:
-                risk_puani += 15 # Her otomatik yakalanan trend için puan ekle
-                bulgular.append(f"Otomatik Yakalanan Trend: {ok.upper()}")
-                break 
-
-    # 4. Link Kontrolü
-    if re.search(r'https?://', metin_lower) or "bit.ly" in metin_lower:
-        risk_puani += 40
-        bulgular.append("Şüpheli Link/Bağlantı")
-
-    return jsonify({
-        "risk": min(100, risk_puani),
-        "metin": metin,
-        "kaynak": kaynak,
-        "bulgular": list(set(bulgular)) # Tekrarları önle
-    })
+@app.route('/analiz', methods=['POST'])
+def perform_analysis():
+    try:
+        if 'image' in request.files:
+            file_bytes = request.files['image'].read()
+            processed_img = goruntu_iyilestir(file_bytes)
+            
+            if processed_img is not None:
+                # --psm 6: Metni tek bir blok olarak okur (Ekran görüntüleri için ideal)
+                custom_config = r'--oem 3 --psm 6'
+                input_text = pytesseract.image_to_string(processed_img, lang='tur', config=custom_config)
+                
+                risk, bulgular = esnek_analiz(input_text)
+                return jsonify({"risk": risk, "metin": input_text, "bulgular": bulgular})
+        
+        return jsonify({"risk": 0, "metin": "Okunamadı", "bulgular": []}), 400
+    except Exception as e:
+        return jsonify({"risk": 0, "metin": f"Hata: {e}"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Portu 5005 yaptık
+    app.run(debug=True, host='0.0.0.0', port=5005)

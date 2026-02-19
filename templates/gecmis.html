@@ -1,36 +1,52 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
-    <title>Sentisec | Analiz Geçmişi</title>
+    <meta charset="UTF-8">
+    <title>SENTISEC - Analiz Geçmişi</title>
     <style>
-        body { font-family: sans-serif; background: #1a1a2e; color: white; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #16213e; }
-        th, td { border: 1px solid #533483; padding: 12px; text-align: left; }
-        th { background: #e94560; }
-        tr:nth-child(even) { background: #1f2a44; }
-        .risk-high { color: #ff4d4d; font-weight: bold; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: #eee; padding: 40px; }
+        .container { max-width: 1000px; margin: auto; }
+        h1 { color: #00d2ff; border-bottom: 2px solid #333; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #1a1a1a; border-radius: 10px; overflow: hidden; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #333; }
+        th { background: #252525; color: #00d2ff; }
+        tr:hover { background: #222; }
+        .risk-badge { padding: 5px 10px; border-radius: 5px; font-weight: bold; }
+        .high-risk { background: #ff4757; color: white; }
+        .low-risk { background: #2ed573; color: white; }
+        .back-btn { display: inline-block; margin-bottom: 20px; color: #00d2ff; text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>📋 Sistem Analiz Kayıtları (Loglar)</h1>
-    <a href="/" style="color: #4caf50;">← Analiz Sayfasına Dön</a>
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Tarih</th>
-            <th>Metin</th>
-            <th>Hız</th>
-            <th>Risk Skoru</th>
-        </tr>
-        {% for veri in veriler %}
-        <tr>
-            <td>{{ veri[0] }}</td>
-            <td>{{ veri[1] }}</td>
-            <td>{{ veri[2][:50] }}...</td>
-            <td>{{ veri[3] }}</td>
-            <td class="{{ 'risk-high' if veri[4] > 70 else '' }}">%{{ veri[4] }}</td>
-        </tr>
-        {% endfor %}
-    </table>
+    <div class="container">
+        <a href="/" class="back-btn">← Ana Sayfaya Dön</a>
+        <h1>🛡️ Tehdit Analiz Geçmişi</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tarih</th>
+                    <th>Kaynak</th>
+                    <th>Metin Özeti</th>
+                    <th>Risk Skoru</th>
+                    <th>Bulgular</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for analiz in analizler %}
+                <tr>
+                    <td>{{ analiz[0] }}</td>
+                    <td><small>{{ analiz[4] }}</small></td>
+                    <td>{{ analiz[1][:50] }}...</td>
+                    <td>
+                        <span class="risk-badge {{ 'high-risk' if analiz[2] > 50 else 'low-risk' }}">
+                            %{{ analiz[2] }}
+                        </span>
+                    </td>
+                    <td><small>{{ analiz[3] }}</small></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </body>
 </html>
